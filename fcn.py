@@ -126,7 +126,7 @@ def train(sim, z, train_loader, test_loader, observable_features_only=False):
         max_steps=200_000,
         logger=wandb_logger, 
         gradient_clip_val=1.0,
-        val_check_interval=0.5,
+        val_check_interval=0.5 if sim == 'TNG' else 0.1,
         callbacks=[best_check, early_stop],
         default_root_dir=checkpoint_path / run_name,
         enable_progress_bar=False
