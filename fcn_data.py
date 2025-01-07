@@ -157,17 +157,14 @@ for sim, data in filenames.items():
         df = pd.DataFrame(halo_stats)
         df.to_csv(f"{out_path}/{sim}_z{z}_raw.csv", index=False)
         print('len df = ', len(df))
-
         means = df.mean()
         stds = df.std()
-        stats = np.stack((means.values,stds.values))
-        # stats_df = pd.concat([means, stds], keys=['means', 'stds'], axis=1)
-        # stats_df.to_csv(f"{out_path}/{sim}_z{z}_stats.csv", index=False)
+        stats_df = pd.DataFrame({
+            'mean': means,
+            'std': stds
+        })
+        stats_df.to_csv(f"{out_path}/{sim}_z{z}_stats.csv")
 
-        # Standardize dataframe by subtracting mean and dividing by std
-        scaled_df = (df - means) / stds
-        scaled_df.to_csv(f"{out_path}/{sim}_z{z}_normalized.csv", index=False)
-        
         
 end_whole = time.time()
 print(f"This program took {get_time(end_whole-start_whole)}")

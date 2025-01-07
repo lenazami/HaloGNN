@@ -50,11 +50,19 @@ filenames = {
 # ------------------
 # Functions
 # ------------------
-def load_data(datadir, observable_features_only=False, batch_size=32):
+def load_data(datadir, trainsim_datadir=None,observable_features_only=False, batch_size=64,):
     '''
     filenames[sim][z] -> gives simulation suite and redshift for this particular dataset
     '''
-    data = pd.read_csv(f'{datadir}_normalized.csv')
+    if trainsim_datadir is None:
+        trainsim_datadir = datadir
+    data = pd.read_csv(f'{datadir}_raw.csv')
+    train_stats = pd.read_csv(f'{trainsim_datadir}_stats.csv', index_col=0)
+    
+    # Get means and stds from training data
+    train_means = train_stats['mean']
+    train_stds = train_stats['std']
+    
     non_observable_features = [
         'HaloMass',  
         'GalaxyMass_Sum', 
@@ -68,9 +76,13 @@ def load_data(datadir, observable_features_only=False, batch_size=32):
         'Velocity_Mean'
     ]
     features_to_drop = non_observable_features if observable_features_only else ['HaloMass']
+    def standardize_data(data):
+        return (data - train_means) / train_stds
+
     def create_dataloader(data_split, shuffle):
-        features = data_split.drop(columns=features_to_drop)
-        targets = data_split['HaloMass']
+        standardized_data = standardize_data(data_split)
+        features = standardized_data.drop(columns=features_to_drop)
+        targets = standardized_data['HaloMass']
         
         dataset = TensorDataset(
             torch.tensor(features.to_numpy(), dtype=torch.float32),
@@ -136,25 +148,24 @@ def train(sim, z, train_loader, test_loader, observable_features_only=False):
 
 if __name__ == '__main__':
     start_whole = time.time()
-    observable_features_only = False 
-    
-    for sim, data in filenames.items():
-        for z, filepath in data.items():
-            # LOADING DATA
-            start_load = time.time()
-            print(f"\033[35mLoading data for {sim} at z={z}\033[37m")
-            train_loader, test_loader = load_data(
-                datadir=filenames[sim][z], 
-                observable_features_only=observable_features_only,
-            )
-            end_load = time.time()
-            
-            # TRAINING
-            print(f"\033[35mLoading lasted {str(timedelta(seconds=(end_load-start_load)))}. Beginning training\033[37m")
-            start_train = time.time()
-            train(sim, z, train_loader, test_loader)
-            end_train=time.time()
-            print(f"Training lasted {str(timedelta(seconds=(end_train-start_train)))}")
+    for observable_features_only in [True, False]:
+        for sim, data in filenames.items():
+            for z, filepath in data.items():
+                # LOADING DATA
+                start_load = time.time()
+                print(f"\033[35mLoading data for {sim} at z={z}\033[37m")
+                train_loader, val_loader, _ = load_data(
+                    datadir=filenames[sim][z], 
+                    observable_features_only=observable_features_only,
+                )
+                end_load = time.time()
+                
+                # TRAINING
+                print(f"\033[35mLoading lasted {str(timedelta(seconds=(end_load-start_load)))}. Beginning training\033[37m")
+                start_train = time.time()
+                train(sim, z, train_loader, val_loader)
+                end_train=time.time()
+                print(f"Training lasted {str(timedelta(seconds=(end_train-start_train)))}")
 
     # Finishing ------
     end_whole = time.time()
