@@ -122,11 +122,12 @@ def train(sim, z, train_loader, test_loader, observable_features_only=False):
         verbose=True
     )
 
+    print('Checkpoint path = ', checkpoint_path / run_name)
     trainer = L.Trainer(
         max_steps=200_000,
         logger=wandb_logger, 
         gradient_clip_val=1.0,
-        val_check_interval=0.5 if sim == 'TNG' else 0.1,
+        val_check_interval=0.5 if sim == 'TNG' else 0.05,
         callbacks=[best_check, early_stop],
         default_root_dir=checkpoint_path / run_name,
         enable_progress_bar=False
@@ -148,7 +149,7 @@ def train(sim, z, train_loader, test_loader, observable_features_only=False):
 
 if __name__ == '__main__':
     start_whole = time.time()
-    for observable_features_only in [True, False]:
+    for observable_features_only in [False, True]:
         for sim, data in filenames.items():
             for z, filepath in data.items():
                 # LOADING DATA
@@ -163,7 +164,7 @@ if __name__ == '__main__':
                 # TRAINING
                 print(f"\033[35mLoading lasted {str(timedelta(seconds=(end_load-start_load)))}. Beginning training\033[37m")
                 start_train = time.time()
-                train(sim, z, train_loader, val_loader)
+                train(sim, z, train_loader, val_loader, observable_features_only=observable_features_only)
                 end_train=time.time()
                 print(f"Training lasted {str(timedelta(seconds=(end_train-start_train)))}")
 

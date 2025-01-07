@@ -112,6 +112,6 @@ class FlowModel(L.LightningModule):
             "monitor": f"val_loss",
         }
 
-    def predict_step(self, batch, batch_idx, n_samples=100):
+    def predict_step(self, batch, batch_idx, n_samples=200):
         x, _ = batch
-        return self.flow(batch).sample((n_samples,))
+        return self.flow(x).sample((n_samples,))
