@@ -5,6 +5,7 @@ import os
 import time
 start_whole = time.time()
 
+from pathlib import Path
 import numpy as np
 import pandas as pd
 import torch
@@ -20,24 +21,26 @@ print("The baseline data script used:",device)
 Stores redshifts, sim suites, and filepaths for data made during processing
 Sorted by file size/galaxy count
 '''
+DATA_DIR = Path('/n/holystore01/LABS/itc_lab/Lab/galaxyGNN/')
+base_path = Path('/n/holystore01/LABS/itc_lab/Lab/galaxyGNN/carol_processed_data/baseline')
+
 filenames = {
     'TNG': {
-        6: '/n/home03/hbrittain/galaxyGNN/high-z-jwst-TNG/TNG100_galaxy_halo_catalog_z6.npy',
-        5: '/n/home03/hbrittain/galaxyGNN/high-z-jwst-TNG/TNG100_galaxy_halo_catalog_z5.npy',
-        4: '/n/home03/hbrittain/galaxyGNN/high-z-jwst-TNG/TNG100_galaxy_halo_catalog_z4.npy',
+        6: DATA_DIR / 'high-z-jwst-TNG/TNG100_galaxy_halo_catalog_z6.npy',
+        5: DATA_DIR / 'high-z-jwst-TNG/TNG100_galaxy_halo_catalog_z5.npy',
+        4: DATA_DIR / 'high-z-jwst-TNG/TNG100_galaxy_halo_catalog_z4.npy',
     },
     'ASTRID': {
-        6: '/n/holystore01/LABS/itc_lab/Lab/galaxyGNN/high-z-jwst/ASTRID_galaxy_halo_catalog_047.npy',
-        5: '/n/holystore01/LABS/itc_lab/Lab/galaxyGNN/high-z-jwst/ASTRID_galaxy_halo_catalog_107.npy',
-        4: '/n/holystore01/LABS/itc_lab/Lab/galaxyGNN/high-z-jwst/ASTRID_galaxy_halo_catalog_147.npy',
-        3: '/n/holystore01/LABS/itc_lab/Lab/galaxyGNN/high-z-jwst/ASTRID_galaxy_halo_catalog_214.npy',
+        6: DATA_DIR / 'high-z-jwst/ASTRID_galaxy_halo_catalog_047.npy',
+        5: DATA_DIR / 'high-z-jwst/ASTRID_galaxy_halo_catalog_107.npy',
+        4: DATA_DIR / 'high-z-jwst/ASTRID_galaxy_halo_catalog_147.npy',
+        3: DATA_DIR / 'high-z-jwst/ASTRID_galaxy_halo_catalog_214.npy',
     } 
 }
 
 '''
 For output filepaths
 '''
-base_path = '/n/home03/hbrittain/outputs/baseline'
 
 # ------------------
 # Functions
@@ -52,23 +55,58 @@ def make_halo_array(dat):
 
 def sum_stats(halo):
     '''
-    Goes through each halo array and creates a 1d-vector of summary statistics.
-    In case any 0's exist in the data, the summary statistics are first formed, 
-    and then base log 10 is applied. This avoids any -inf that will mess up the data.
-    '''
-    halo['SFR'] = np.where(halo['SFR'] == 0, 1e-4, halo['SFR'])
+    Computes summary statistics for a group of galaxies within a halo.
+    Returns a dictionary of features, making it easy to add/remove features
+    while maintaining consistency in the data pipeline.
     
-    halomass = np.log10(halo['HaloMass'].max())
-    galmass_sum, galmass_max, galmass_mean = np.log10([halo['GalaxyMass'].sum(), 
-                                                       halo['GalaxyMass'].max(), halo['GalaxyMass'].mean()])
-    sfr_sum, sfr_max, sfr_mean = np.log10([halo['SFR'].sum(), halo['SFR'].max(), halo['SFR'].mean()])
-    vel_disp = halo['GalaxyVel'].std()
-    f0 = halo['jwst_f090w'].mean()
-    f1 = halo['jwst_f150w'].mean()
-    f2 = halo['jwst_f277w'].mean()
-    f4 = halo['jwst_f444w'].mean()
-    return [halomass, galmass_sum, galmass_max, galmass_mean, sfr_sum, 
-            sfr_max, sfr_mean, vel_disp, f0, f1, f2, f4] 
+    Parameters:
+        halo: Structured numpy array containing galaxy properties within a halo
+        
+    Returns:
+        dict: Dictionary of feature names and their values
+    '''
+    MIN_SFR = 1e-4
+    halo['SFR'] = np.where(halo['SFR'] == 0., MIN_SFR, halo['SFR'])
+    
+    # Mass features
+    features = {
+        'HaloMass': np.log10(halo['HaloMass'].max()),
+        'GalaxyMass_Sum': np.log10(halo['GalaxyMass'].sum()),
+        'GalaxyMass_Max': np.log10(halo['GalaxyMass'].max()),
+        'GalaxyMass_Mean': np.log10(halo['GalaxyMass'].mean()),
+    }
+    
+    # Star formation features
+    features.update({
+        'SFR_Sum': np.log10(halo['SFR'].sum()),
+        'SFR_Max': np.log10(halo['SFR'].max()),
+        'SFR_Mean': np.log10(halo['SFR'].mean()),
+    })
+    
+    # Velocity features
+    features.update({
+        'Velocity_Dispersion': halo['GalaxyVel'].std(),
+        'Velocity_Max': halo['GalaxyVel'].max(),
+        'Velocity_Mean': halo['GalaxyVel'].mean(),
+    })
+    
+    # JWST photometry features
+    for band, band_name in [('jwst_f090w', 'F090W'), 
+                           ('jwst_f150w', 'F150W'),
+                           ('jwst_f277w', 'F277W'),
+                           ('jwst_f444w', 'F444W')]:
+        band_data = halo[band]
+        features.update({
+            f'{band_name}_Sum': band_data.sum(),
+            f'{band_name}_Max': band_data.max(),
+            f'{band_name}_Mean': band_data.mean(),
+        })
+    
+    # Structural features
+    features.update({
+        'N_Galaxies': halo['GalaxyMass'].shape[0],
+    })
+    return features
 
 def get_time(elapsed):
     '''
@@ -85,8 +123,8 @@ for sim, data in filenames.items():
     for z, filepath in data.items():
         start = time.time()
         
-        out_path = f"{base_path}/{sim}_z{z}"
-        os.makedirs(out_path, exist_ok=True)
+        out_path = base_path / f"{sim}_z{z}"
+        out_path.mkdir(parents=True, exist_ok=True)
         print(f"Currently processing redshift z={z} for {sim} Suite")
         
         cat_data = np.load(filepath)
@@ -96,7 +134,11 @@ for sim, data in filenames.items():
         # No need to batch; Max file size is <0.5GB
         # On the off chance it is not sorted, this shouldn't take more than 5 seconds
         cat_data = np.sort(cat_data, order='FOFID') 
+        print('All galaxies = ', cat_data.shape)
         halos = make_halo_array(cat_data)
+        print('All Halos = ', len(halos))
+        print('Mean len halos = ', np.mean([len(halo) for halo in halos]))
+        print('Max len halos = ', np.max([len(halo) for halo in halos]))
                 
         # Ensures that if data is generated again, it will overwrite the previous file
         with open(f'{out_path}/{sim}_z{z}_halos.pkl', 'wb') as file:
@@ -111,16 +153,14 @@ for sim, data in filenames.items():
         
         halo_stats = []
         for halo in halos:
-            halo_stats.append(sum_stats(halos))
-        
-        # Reformatting halo_stats to dataframe for file purposes; We want to retain column titles
-        df = pd.DataFrame(halo_stats, columns=['HaloMass', 'GM_Sum', 'GM_Max', 'GM_Mean', 'SFR_Sum', 'SFR_Max', 
-                                               'SFR_Mean', 'V_disp', 'f0', 'f1', 'f2', 'f4'])
+            halo_stats.append(sum_stats(halo))
+        df = pd.DataFrame(halo_stats)
         df.to_csv(f"{out_path}/{sim}_z{z}_raw.csv", index=False)
+        print('len df = ', len(df))
 
         means = df.mean()
         stds = df.std()
-        stats = np.array([means],[stds])
+        stats = np.stack((means.values,stds.values))
         # stats_df = pd.concat([means, stds], keys=['means', 'stds'], axis=1)
         # stats_df.to_csv(f"{out_path}/{sim}_z{z}_stats.csv", index=False)
 

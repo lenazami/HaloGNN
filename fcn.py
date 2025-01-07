@@ -18,7 +18,7 @@ from lightning.pytorch.callbacks import ModelCheckpoint, EarlyStopping
 from lightning.pytorch.loggers import WandbLogger
 import wandb
 
-from baseline_model import LinearModel
+from fcn_model import FlowModel
 end_import = time.time()
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Imports took {str(timedelta(seconds=(end_import-start_import)))}. This program is using: {device}")
@@ -30,33 +30,33 @@ print(f"Imports took {str(timedelta(seconds=(end_import-start_import)))}. This p
 Stores redshifts, sim suites, and filepaths for data
 Sorted by file size/galaxy count
 '''
-data_path = Path('/n/home03/hbrittain/data_outs/baseline/')
+data_path = Path('/n/holystore01/LABS/itc_lab/Lab/galaxyGNN/carol_processed_data/baseline')
+checkpoint_path = Path('/n/holystore01/LABS/itc_lab/Lab/galaxyGNN/models/')
 
 filenames = {
-    # 'TNG': {
-    #     # 6: data_path / 'TNG_z6/TNG_z6',
-    #     # 5: data_path / 'TNG_z5/TNG_z5',
-    #     4: data_path / 'TNG_z4/TNG_z4'
-    # },
+    'TNG': {
+        # 6: data_path / 'TNG_z6/TNG_z6',
+        # 5: data_path / 'TNG_z5/TNG_z5',
+        4: data_path / 'TNG_z4/TNG_z4'
+    },
     'ASTRID': {
         # 6: data_path / 'ASTRID_z6/ASTRID_z6',
-        5: data_path / 'ASTRID_z5/ASTRID_z5',
+        #5: data_path / 'ASTRID_z5/ASTRID_z5',
         4: data_path / 'ASTRID_z4/ASTRID_z4',
-        3: data_path / 'ASTRID_z3/ASTRID_z3'
+        #3: data_path / 'ASTRID_z3/ASTRID_z3'
     } 
 }
 
 # ------------------
 # Functions
 # ------------------
-def load_data(datadir):
+def load_data(datadir, observable_features_only=False, batch_size=32):
     '''
     filenames[sim][z] -> gives simulation suite and redshift for this particular dataset
     '''
     data = pd.read_csv(f'{datadir}_normalized.csv')
     # for some reason redshift screws things up, but we want to preserve this for later
-    data = data.drop(columns='Z') 
-    
+    #data = data.drop(columns='Z') 
     # # uncomment to limit data
     # limit = 0.2
     # data = data.sample(frac=limit, random_state=42)
@@ -64,12 +64,27 @@ def load_data(datadir):
     train, test = train_test_split(data, random_state=42)
 
     # train
-    feat_train = train.drop(columns=['HaloMass']) 
+    if observable_features_only:
+        feat_train = train.drop(columns=[
+            'HaloMass', 
+            'GalaxyMass_Sum', 
+            'GalaxyMass_Max', 
+            'GalaxyMass_Mean', 
+            'SFR_Sum', 
+            'SFR_Max', 
+            'SFR_Mean', 
+            'Velocity_Dispersion', 
+            'Velocity_Max', 
+            'Velocity_Mean'
+            ]
+        ) 
+    else:
+        feat_train = train.drop(columns=['HaloMass']) 
     targ_train = train['HaloMass']
     train_dataset = TensorDataset(
         torch.tensor(feat_train.to_numpy(), dtype=torch.float32), 
         torch.tensor(targ_train.to_numpy(), dtype=torch.float32).unsqueeze(-1))
-    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 
     # test
     feat_test = test.drop(columns=['HaloMass'])
@@ -77,14 +92,15 @@ def load_data(datadir):
     test_dataset = TensorDataset(
         torch.tensor(feat_test.to_numpy(), dtype=torch.float32), 
         torch.tensor(targ_test.to_numpy(), dtype=torch.float32).unsqueeze(-1))
-    test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
     
     return train_loader, test_loader
 
-def train(sim, z, train_loader, test_loader):
+def train(sim, z, train_loader, test_loader, observable_features_only=False):
+    run_name = f'FCN_{sim}_z{z}' if not observable_features_only else f'FCN_{sim}_z{z}_observable_features_only'
     wandb_logger = WandbLogger(
         log_model=False, 
-        project=f'FCN_{sim}_z{z}'
+        project=run_name,
         )
     
     best_check = ModelCheckpoint(
@@ -92,7 +108,7 @@ def train(sim, z, train_loader, test_loader):
         mode="min",                  
         save_top_k=1,  
         filename=f"best_fcn_{sim}z{z}""_model-{step:02d}-{val_loss:.2f}-{mse_loss:.2f}", 
-        dirpath=f'/n/home03/hbrittain/networks/LIGHTNING_FILES/FCN_{sim}_z{z}',  
+        dirpath = checkpoint_path / run_name,
         verbose=True                 
     )
     early_stop = EarlyStopping(
@@ -108,12 +124,12 @@ def train(sim, z, train_loader, test_loader):
         gradient_clip_val=1.0,
         val_check_interval=0.5,
         callbacks=[best_check, early_stop],
-        default_root_dir='/n/home03/hbrittain/networks/LIGHTNING_FILES/',
+        default_root_dir=checkpoint_path / run_name,
         enable_progress_bar=False
         )
     
-    num_features = num_features = next(iter(test_loader))[0].shape[1]
-    model = LinearModel(context=num_features)
+    num_features = next(iter(test_loader))[0].shape[1]
+    model = FlowModel(context=num_features)
     
     trainer.fit(model=model, 
                 train_dataloaders=train_loader, 
@@ -128,13 +144,17 @@ def train(sim, z, train_loader, test_loader):
 
 if __name__ == '__main__':
     start_whole = time.time()
+    observable_features_only = False 
     
     for sim, data in filenames.items():
         for z, filepath in data.items():
             # LOADING DATA
             start_load = time.time()
             print(f"\033[35mLoading data for {sim} at z={z}\033[37m")
-            train_loader, test_loader = load_data(datadir=filenames[sim][z])
+            train_loader, test_loader = load_data(
+                datadir=filenames[sim][z], 
+                observable_features_only=observable_features_only,
+            )
             end_load = time.time()
             
             # TRAINING

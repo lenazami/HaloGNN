@@ -27,7 +27,7 @@ def log_matplotlib_figure(figure_label: str):
     wandb.log({f"{figure_label}": wandb.Image(image)})
     
 
-class LinearModel(L.LightningModule):
+class FlowModel(L.LightningModule):
     def __init__(self, context=11, transforms=6, hidden_features=[128,128,128]):
         '''
         Notes on Zuko notation--
@@ -111,3 +111,7 @@ class LinearModel(L.LightningModule):
             "lr_scheduler": scheduler,
             "monitor": f"val_loss",
         }
+
+    def predict_step(self, batch, batch_idx, n_samples=100):
+        x, _ = batch
+        return self.flow(batch).sample((n_samples,))
