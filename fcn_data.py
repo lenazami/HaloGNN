@@ -65,7 +65,7 @@ def sum_stats(halo):
     Returns:
         dict: Dictionary of feature names and their values
     '''
-    MIN_SFR = 1e-4
+    MIN_SFR = 1e-5
     halo['SFR'] = np.where(halo['SFR'] == 0., MIN_SFR, halo['SFR'])
     
     # Mass features

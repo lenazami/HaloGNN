@@ -55,46 +55,38 @@ def load_data(datadir, observable_features_only=False, batch_size=32):
     filenames[sim][z] -> gives simulation suite and redshift for this particular dataset
     '''
     data = pd.read_csv(f'{datadir}_normalized.csv')
-    # for some reason redshift screws things up, but we want to preserve this for later
-    #data = data.drop(columns='Z') 
-    # # uncomment to limit data
-    # limit = 0.2
-    # data = data.sample(frac=limit, random_state=42)
-
-    train, test = train_test_split(data, random_state=42)
-
-    # train
-    if observable_features_only:
-        feat_train = train.drop(columns=[
-            'HaloMass', 
-            'GalaxyMass_Sum', 
-            'GalaxyMass_Max', 
-            'GalaxyMass_Mean', 
-            'SFR_Sum', 
-            'SFR_Max', 
-            'SFR_Mean', 
-            'Velocity_Dispersion', 
-            'Velocity_Max', 
-            'Velocity_Mean'
-            ]
-        ) 
-    else:
-        feat_train = train.drop(columns=['HaloMass']) 
-    targ_train = train['HaloMass']
-    train_dataset = TensorDataset(
-        torch.tensor(feat_train.to_numpy(), dtype=torch.float32), 
-        torch.tensor(targ_train.to_numpy(), dtype=torch.float32).unsqueeze(-1))
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-
-    # test
-    feat_test = test.drop(columns=['HaloMass'])
-    targ_test = test['HaloMass']
-    test_dataset = TensorDataset(
-        torch.tensor(feat_test.to_numpy(), dtype=torch.float32), 
-        torch.tensor(targ_test.to_numpy(), dtype=torch.float32).unsqueeze(-1))
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+    non_observable_features = [
+        'HaloMass',  
+        'GalaxyMass_Sum', 
+        'GalaxyMass_Max', 
+        'GalaxyMass_Mean', 
+        'SFR_Sum', 
+        'SFR_Max', 
+        'SFR_Mean', 
+        'Velocity_Dispersion', 
+        'Velocity_Max', 
+        'Velocity_Mean'
+    ]
+    features_to_drop = non_observable_features if observable_features_only else ['HaloMass']
+    def create_dataloader(data_split, shuffle):
+        features = data_split.drop(columns=features_to_drop)
+        targets = data_split['HaloMass']
+        
+        dataset = TensorDataset(
+            torch.tensor(features.to_numpy(), dtype=torch.float32),
+            torch.tensor(targets.to_numpy(), dtype=torch.float32).unsqueeze(-1)
+        )
+        
+        return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
     
-    return train_loader, test_loader
+    train_data, test_data = train_test_split(data, random_state=42, test_size=0.1)
+    train_data, val_data = train_test_split(train_data, random_state=42, test_size=0.1)
+    train_loader = create_dataloader(train_data, shuffle=True)
+    val_loader = create_dataloader(val_data, shuffle=False)
+    test_loader = create_dataloader(test_data, shuffle=False)
+    
+    return train_loader, val_loader, test_loader  
+
 
 def train(sim, z, train_loader, test_loader, observable_features_only=False):
     run_name = f'FCN_{sim}_z{z}' if not observable_features_only else f'FCN_{sim}_z{z}_observable_features_only'
