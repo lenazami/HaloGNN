@@ -32,6 +32,7 @@ filenames = {
         6: DATA_DIR / "high-z-jwst-TNG/TNG100_galaxy_halo_catalog_z6.npy",
         5: DATA_DIR / "high-z-jwst-TNG/TNG100_galaxy_halo_catalog_z5.npy",
         4: DATA_DIR / "high-z-jwst-TNG/TNG100_galaxy_halo_catalog_z4.npy",
+        3: DATA_DIR / 'high-z-jwst-TNG/TNG100_galaxy_halo_catalog_z3.npy',
     },
     "ASTRID": {
         6: DATA_DIR / "high-z-jwst/ASTRID_galaxy_halo_catalog_047.npy",

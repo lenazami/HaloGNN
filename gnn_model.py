@@ -358,7 +358,7 @@ class GraphNetwork(torch.nn.Module):
     def __init__(
             self,
             node_features_dim: Optional[int] = 16,
-            edge_features_dim: Optional[int] = 3,
+            edge_features_dim: Optional[int] = 4,
             global_features_dim: Optional[int] = 1,
             node_features_hidden_dim: int = 64,
             edge_features_hidden_dim: int = 64,
