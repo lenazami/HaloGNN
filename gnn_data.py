@@ -19,16 +19,16 @@ print("The GNN data script used: ", device)
 DATA_PATH = Path(f"/n/holystore01/LABS/itc_lab/Lab/galaxyGNN/")
 
 filenames = {
-    "TNG": {
-        6: DATA_PATH / "high-z-jwst-TNG/TNG100_galaxy_halo_catalog_z6.npy",
-        5: DATA_PATH / "high-z-jwst-TNG/TNG100_galaxy_halo_catalog_z5.npy",
-        4: DATA_PATH / "high-z-jwst-TNG/TNG100_galaxy_halo_catalog_z4.npy",
-        3: DATA_PATH / "high-z-jwst-TNG/TNG100_galaxy_halo_catalog_z3.npy",
-    },
+    # "TNG": {
+    #     6: DATA_PATH / "high-z-jwst-TNG/TNG100_galaxy_halo_catalog_z6.npy",
+    #     5: DATA_PATH / "high-z-jwst-TNG/TNG100_galaxy_halo_catalog_z5.npy",
+    #     4: DATA_PATH / "high-z-jwst-TNG/TNG100_galaxy_halo_catalog_z4.npy",
+    #     3: DATA_PATH / "high-z-jwst-TNG/TNG100_galaxy_halo_catalog_z3.npy",
+    # },
     "ASTRID": {
-        6: DATA_PATH / "high-z-jwst/ASTRID_galaxy_halo_catalog_047.npy",
-        5: DATA_PATH / "high-z-jwst/ASTRID_galaxy_halo_catalog_107.npy",
-        4: DATA_PATH / "high-z-jwst/ASTRID_galaxy_halo_catalog_147.npy",
+        #6: DATA_PATH / "high-z-jwst/ASTRID_galaxy_halo_catalog_047.npy",
+        #5: DATA_PATH / "high-z-jwst/ASTRID_galaxy_halo_catalog_107.npy",
+        #4: DATA_PATH / "high-z-jwst/ASTRID_galaxy_halo_catalog_147.npy",
         3: DATA_PATH / "high-z-jwst/ASTRID_galaxy_halo_catalog_214.npy",
     },
 }

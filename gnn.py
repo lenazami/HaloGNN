@@ -16,10 +16,10 @@ from torch_geometric.data import Batch
 import lightning as L
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint, EarlyStopping
-from sklearn.model_selection import train_test_split
 import wandb
 # model
 from gnn_model import GraphModel
+from data_utils import get_split_indices
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"This program is using: {device}")
@@ -37,15 +37,7 @@ checkpoint_path = Path("/n/holystore01/LABS/itc_lab/Lab/galaxyGNN/models/")
 # ------------------
 # Functions
 # ------------------
-def get_split_indices(length, random_state=42):
-    indices = np.arange(length)
-    train_idx, test_idx = train_test_split(
-        indices, random_state=random_state, test_size=0.1
-    )
-    train_idx, val_idx = train_test_split(
-        train_idx, random_state=random_state, test_size=0.05
-    )
-    return train_idx, val_idx, test_idx
+
 
 def mask_features(data_list, features_to_mask):
     feature_names = data_list[0].feature_names
@@ -111,7 +103,7 @@ def load_data(
         data = mask_features(data, features_to_mask=non_observable_features)
     
 
-    train_idx, val_idx, test_idx = get_split_indices(len(data))
+    train_idx, val_idx, test_idx = get_split_indices(len(data), test_size=0.1 if sim=='TNG' else 0.01, val_size=0.05)
     
     train_data = [data[i] for i in train_idx]
     val_data = [data[i] for i in val_idx]
@@ -209,10 +201,9 @@ if __name__ == '__main__':
     start_whole = time.time()
     graph_radius = 2000.
     data_path = Path(f"/n/holystore01/LABS/itc_lab/Lab/galaxyGNN/carol_processed_data/gnn_{graph_radius:.1f}/")
-    #sims = ['TNG', 'ASTRID']
-    sims = ['ASTRID']
-    zs = [4,]
-    observable_features_only = True 
+    sims = ['TNG', 'ASTRID']
+    zs = [3,]
+    observable_features_only = False 
     for sim in sims:
         for z in zs:
             # LOADING DATA

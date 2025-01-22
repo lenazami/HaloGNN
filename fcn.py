@@ -3,6 +3,7 @@
 # ------------------
 # general
 import os
+from data_utils import get_split_indices
 import numpy as np
 
 print(f"{os.path.basename(__file__)} is running")
@@ -42,48 +43,27 @@ data_path = Path(
 )
 checkpoint_path = Path("/n/holystore01/LABS/itc_lab/Lab/galaxyGNN/models/")
 
-filenames = {
-    "TNG": {
-        # 6: data_path / 'TNG_z6/TNG_z6',
-        # 5: data_path / 'TNG_z5/TNG_z5',
-        4: data_path
-        / "TNG_z4/TNG_z4"
-    },
-    "ASTRID": {
-        # 6: data_path / 'ASTRID_z6/ASTRID_z6',
-        # 5: data_path / 'ASTRID_z5/ASTRID_z5',
-        4: data_path / "ASTRID_z4/ASTRID_z4",
-        # 3: data_path / 'ASTRID_z3/ASTRID_z3'
-    },
-}
-
-
 # ------------------
 # Functions
 # ------------------
-def get_split_indices(length, random_state=42):
-    indices = np.arange(length)
-    train_idx, test_idx = train_test_split(
-        indices, random_state=random_state, test_size=0.1
-    )
-    train_idx, val_idx = train_test_split(
-        train_idx, random_state=random_state, test_size=0.05
-    )
-    return train_idx, val_idx, test_idx
+
 
 def load_data(
     datadir,
-    trainsim_datadir=None,
+    z,
+    sim='TNG',
+    train_sim=None,
     observable_features_only=False,
     batch_size=64,
+    target='HaloMass',
 ):
     """
     filenames[sim][z] -> gives simulation suite and redshift for this particular dataset
     """
-    if trainsim_datadir is None:
-        trainsim_datadir = datadir
-    data = pd.read_csv(f"{datadir}_raw.csv")
-    train_stats = pd.read_csv(f"{trainsim_datadir}_stats.csv", index_col=0)
+    if train_sim is None:
+        train_sim = sim
+    data = pd.read_csv(datadir / f"{sim}_z{z}/{sim}_z{z}_raw.csv")
+    train_stats = pd.read_csv(datadir / f"{sim}_z{z}/{sim}_z{z}_stats.csv", index_col=0)
 
     # Get means and stds from training data
     train_means = train_stats["mean"]
@@ -101,17 +81,23 @@ def load_data(
         "Velocity_Max",
         "Velocity_Mean",
     ]
-    features_to_drop = (
-        non_observable_features if observable_features_only else ["HaloMass"]
-    )
+    if sim == 'TNG':
+        non_observable_features.append('HaloMass_z0')
 
+    if observable_features_only:
+        features_to_drop = non_observable_features
+    else:
+        features_to_drop = ['HaloMass']
+        if sim == 'TNG':
+            features_to_drop.append('HaloMass_z0')
+    
     def standardize_data(data):
         return (data - train_means) / train_stds
 
     def create_dataloader(data_split, shuffle):
         standardized_data = standardize_data(data_split)
         features = standardized_data.drop(columns=features_to_drop)
-        targets = standardized_data["HaloMass"]
+        targets = standardized_data[target]
 
         dataset = TensorDataset(
             torch.tensor(features.to_numpy(), dtype=torch.float32),
@@ -120,7 +106,8 @@ def load_data(
 
         return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
 
-    train_idx, val_idx, test_idx = get_split_indices(len(data))
+    train_idx, val_idx, test_idx = get_split_indices(len(data), test_size=0.1 if sim=='TNG' else 0.01, val_size=0.05)
+
     
     train_data = data.iloc[train_idx]
     val_data = data.iloc[val_idx]
@@ -134,11 +121,11 @@ def load_data(
     return train_loader, val_loader, test_loader
 
 
-def train(sim, z, train_loader, test_loader, observable_features_only=False):
+def train(sim, z, train_loader, test_loader, observable_features_only=False, target='HaloMass'):
     run_name = (
-        f"FCN_{sim}_z{z}"
+        f"FCN_{sim}_z{z}_target_{target}"
         if not observable_features_only
-        else f"FCN_{sim}_z{z}_observable_features_only"
+        else f"FCN_{sim}_z{z}_target_{target}_observable_features_only"
     )
     wandb_logger = WandbLogger(
         log_model=False,
@@ -189,15 +176,25 @@ def train(sim, z, train_loader, test_loader, observable_features_only=False):
 
 if __name__ == "__main__":
     start_whole = time.time()
+    datadir = Path("/n/holystore01/LABS/itc_lab/Lab/galaxyGNN/carol_processed_data/baseline")
+    zs = [3,]
+    target = 'HaloMass_z0'
+    if target == 'HaloMass':
+        sims = ['TNG', 'ASTRID']
+    elif target == 'HaloMass_z0':
+        sims = ['TNG']
     for observable_features_only in [False, True]:
-        for sim, data in filenames.items():
-            for z, filepath in data.items():
+        for sim in sims:
+            for z in zs:
                 # LOADING DATA
                 start_load = time.time()
                 print(f"\033[35mLoading data for {sim} at z={z}\033[37m")
                 train_loader, val_loader, _ = load_data(
-                    datadir=filenames[sim][z],
+                    datadir=datadir,
+                    sim=sim,
+                    z=z,
                     observable_features_only=observable_features_only,
+                    target=target,
                 )
                 end_load = time.time()
 
@@ -212,6 +209,7 @@ if __name__ == "__main__":
                     train_loader,
                     val_loader,
                     observable_features_only=observable_features_only,
+                    target=target,
                 )
                 end_train = time.time()
                 print(

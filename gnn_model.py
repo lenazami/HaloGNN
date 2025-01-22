@@ -575,5 +575,7 @@ class GraphModel(L.LightningModule):
 
     def predict_step(self, batch, batch_idx, n_samples=200):
         x = batch
-        summary = self.model(x) 
-        return self.flow(summary).sample((n_samples,))
+        summary = self.model(x)
+        samples = self.flow(summary).sample((n_samples,))
+        log_prob = self.flow(summary).log_prob(x.y.unsqueeze(-1))
+        return {"log_prob": log_prob, "samples": samples}

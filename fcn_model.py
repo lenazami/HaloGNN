@@ -119,5 +119,7 @@ class FlowModel(L.LightningModule):
         }
 
     def predict_step(self, batch, batch_idx, n_samples=200):
-        x, _ = batch
-        return self.flow(x).sample((n_samples,))
+        x, theta = batch
+        log_prob = self.flow(x).log_prob(theta)
+        samples = self.flow(x).sample((n_samples,))
+        return {"log_prob": log_prob, "samples": samples}
