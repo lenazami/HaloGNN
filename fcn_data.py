@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 import torch
 import pickle
+from data_utils import read_data
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("The baseline data script used:", device)
@@ -32,7 +33,7 @@ filenames = {
         6: DATA_DIR / "high-z-jwst-TNG/TNG100_galaxy_halo_catalog_z6.npy",
         5: DATA_DIR / "high-z-jwst-TNG/TNG100_galaxy_halo_catalog_z5.npy",
         4: DATA_DIR / "high-z-jwst-TNG/TNG100_galaxy_halo_catalog_z4.npy",
-        3: DATA_DIR / 'high-z-jwst-TNG/TNG100_galaxy_halo_catalog_z3.npy',
+        3: DATA_DIR / "high-z-jwst-TNG/TNG100_galaxy_halo_catalog_z3.npy",
     },
     "ASTRID": {
         6: DATA_DIR / "high-z-jwst/ASTRID_galaxy_halo_catalog_047.npy",
@@ -59,7 +60,7 @@ def make_halo_array(dat):
     return np.split(dat, boundaries)
 
 
-def sum_stats(halo):
+def sum_stats(halo, add_z0=False):
     """
     Computes summary statistics for a group of galaxies within a halo.
     Returns a dictionary of features, making it easy to add/remove features
@@ -81,6 +82,8 @@ def sum_stats(halo):
         "GalaxyMass_Max": np.log10(halo["GalaxyMass"].max()),
         "GalaxyMass_Mean": np.log10(halo["GalaxyMass"].mean()),
     }
+    if add_z0:
+        features.update({"HaloMass_z0": np.log10(halo["HaloMass_z0"].max())})
 
     # Star formation features
     features.update(
@@ -137,51 +140,49 @@ def get_time(elapsed):
 # ------------------
 # Main Processing
 # ------------------
-for sim, data in filenames.items():
-    for z, filepath in data.items():
-        start = time.time()
+if __name__ == "__main__":
+    min_mass = 1e7
+    for sim, data in filenames.items():
+        for z, filepath in data.items():
+            start = time.time()
 
-        out_path = base_path / f"{sim}_z{z}"
-        out_path.mkdir(parents=True, exist_ok=True)
-        print(f"Currently processing redshift z={z} for {sim} Suite")
+            out_path = base_path / f"{sim}_z{z}"
+            out_path.mkdir(parents=True, exist_ok=True)
+            print(f"Currently processing redshift z={z} for {sim} Suite")
 
-        cat_data = np.load(filepath)
-        print(
-            f"This catalogue is {os.path.getsize(filepath) / (1024 * 1024):.2f} MB, contains {cat_data.shape[0]:_} galaxies"
-        )
+            cat_data = read_data(filepath, min_mass=min_mass)
+            print(
+                f"This catalogue is {os.path.getsize(filepath) / (1024 * 1024):.2f} MB, contains {cat_data.shape[0]:_} galaxies"
+            )
 
-        # ---------
-        # No need to batch; Max file size is <0.5GB
-        # On the off chance it is not sorted, this shouldn't take more than 5 seconds
-        cat_data = np.sort(cat_data, order="FOFID")
-        print("All galaxies = ", cat_data.shape)
-        halos = make_halo_array(cat_data)
-        print("All Halos = ", len(halos))
-        print("Mean len halos = ", np.mean([len(halo) for halo in halos]))
-        print("Max len halos = ", np.max([len(halo) for halo in halos]))
+            # ---------
+            # No need to batch; Max file size is <0.5GB
+            # On the off chance it is not sorted, this shouldn't take more than 5 seconds
+            cat_data = np.sort(cat_data, order="FOFID")
+            halos = make_halo_array(cat_data)
+            # Ensures that if data is generated again, it will overwrite the previous file
+            with open(f"{out_path}/{sim}_z{z}_halos.pkl", "wb") as file:
+                pickle.dump(halos, file)
 
-        # Ensures that if data is generated again, it will overwrite the previous file
-        with open(f"{out_path}/{sim}_z{z}_halos.pkl", "wb") as file:
-            pickle.dump(halos, file)
+            end = time.time()
+            print(f"Halo processing took {get_time(end-start)}")
 
-        end = time.time()
-        print(f"Halo processing took {get_time(end-start)}")
+            # ---------
+            # Creates the summary statistics; Processes ~50,000 halos/sec
+            column_names = halos[0].dtype.names
 
-        # ---------
-        # Creates the summary statistics; Processes ~50,000 halos/sec
-        column_names = halos[0].dtype.names
+            halo_stats = []
+            for halo in halos:
+                halo_stats.append(
+                    sum_stats(halo, add_z0=True if sim == "TNG" else False)
+                )
+            df = pd.DataFrame(halo_stats)
+            df.to_csv(f"{out_path}/{sim}_z{z}_raw.csv", index=False)
+            means = df.mean()
+            stds = df.std()
+            stats_df = pd.DataFrame({"mean": means, "std": stds})
+            print(df["HaloMass"].iloc[:10])
+            stats_df.to_csv(f"{out_path}/{sim}_z{z}_stats.csv")
 
-        halo_stats = []
-        for halo in halos:
-            halo_stats.append(sum_stats(halo))
-        df = pd.DataFrame(halo_stats)
-        df.to_csv(f"{out_path}/{sim}_z{z}_raw.csv", index=False)
-        print("len df = ", len(df))
-        means = df.mean()
-        stds = df.std()
-        stats_df = pd.DataFrame({"mean": means, "std": stds})
-        stats_df.to_csv(f"{out_path}/{sim}_z{z}_stats.csv")
-
-
-end_whole = time.time()
-print(f"This program took {get_time(end_whole-start_whole)}")
+    end_whole = time.time()
+    print(f"This program took {get_time(end_whole-start_whole)}")

@@ -37,6 +37,16 @@ checkpoint_path = Path("/n/holystore01/LABS/itc_lab/Lab/galaxyGNN/models/")
 # ------------------
 # Functions
 # ------------------
+def get_split_indices(length, random_state=42):
+    indices = np.arange(length)
+    train_idx, test_idx = train_test_split(
+        indices, random_state=random_state, test_size=0.1
+    )
+    train_idx, val_idx = train_test_split(
+        train_idx, random_state=random_state, test_size=0.05
+    )
+    return train_idx, val_idx, test_idx
+
 def mask_features(data_list, features_to_mask):
     feature_names = data_list[0].feature_names
     keep_mask = [name not in features_to_mask for name in feature_names]
@@ -100,8 +110,13 @@ def load_data(
         ]
         data = mask_features(data, features_to_mask=non_observable_features)
     
-    train_data, test_data = train_test_split(data, random_state=42, test_size=0.1)
-    train_data, val_data = train_test_split(train_data, random_state=42, test_size=0.1)
+
+    train_idx, val_idx, test_idx = get_split_indices(len(data))
+    
+    train_data = [data[i] for i in train_idx]
+    val_data = [data[i] for i in val_idx]
+    test_data = [data[i] for i in test_idx]
+    
     train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True,)
     val_loader = DataLoader(val_data, batch_size=batch_size, shuffle=False,)
     test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=False,) 
@@ -169,15 +184,12 @@ def train(sim, z, train_loader, test_loader, observable_features_only=False):
     
     # instantiate trainer
     trainer = L.Trainer(
-        max_steps=100_000,
+        max_steps=200_000,
         logger=wandb_logger, 
         log_every_n_steps=100,
-        # check_val_every_n_epoch=None,
         gradient_clip_val=1.0,
-        # limit_val_batches=0.,
         callbacks=[lr_monitor, best_check, early_stop],
-        val_check_interval=0.5 if sim == "TNG" else 0.05,
-        #default_root_dir='/n/home03/hbrittain/networks/LIGHTNING_FILES/'
+        val_check_interval=0.5 if sim == "TNG" else 0.1,
     )
     # training
     trainer.fit(
@@ -200,7 +212,7 @@ if __name__ == '__main__':
     #sims = ['TNG', 'ASTRID']
     sims = ['ASTRID']
     zs = [4,]
-    observable_features_only = False 
+    observable_features_only = True 
     for sim in sims:
         for z in zs:
             # LOADING DATA

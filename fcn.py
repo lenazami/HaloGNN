@@ -3,6 +3,7 @@
 # ------------------
 # general
 import os
+import numpy as np
 
 print(f"{os.path.basename(__file__)} is running")
 import time
@@ -60,6 +61,16 @@ filenames = {
 # ------------------
 # Functions
 # ------------------
+def get_split_indices(length, random_state=42):
+    indices = np.arange(length)
+    train_idx, test_idx = train_test_split(
+        indices, random_state=random_state, test_size=0.1
+    )
+    train_idx, val_idx = train_test_split(
+        train_idx, random_state=random_state, test_size=0.05
+    )
+    return train_idx, val_idx, test_idx
+
 def load_data(
     datadir,
     trainsim_datadir=None,
@@ -109,8 +120,13 @@ def load_data(
 
         return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
 
-    train_data, test_data = train_test_split(data, random_state=42, test_size=0.1)
-    train_data, val_data = train_test_split(train_data, random_state=42, test_size=0.1)
+    train_idx, val_idx, test_idx = get_split_indices(len(data))
+    
+    train_data = data.iloc[train_idx]
+    val_data = data.iloc[val_idx]
+    test_data = data.iloc[test_idx]
+
+
     train_loader = create_dataloader(train_data, shuffle=True)
     val_loader = create_dataloader(val_data, shuffle=False)
     test_loader = create_dataloader(test_data, shuffle=False)

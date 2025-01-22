@@ -572,3 +572,8 @@ class GraphModel(L.LightningModule):
             'lr_scheduler': scheduler,
             "monitor": f"val_loss"
         }
+
+    def predict_step(self, batch, batch_idx, n_samples=200):
+        x = batch
+        summary = self.model(x) 
+        return self.flow(summary).sample((n_samples,))
