@@ -47,7 +47,7 @@ def get_mlp(
                 layers.append(nn.BatchNorm1d(hidden_dim))
             layers.append(activation())
             layers.append(nn.Dropout(dropout_rate))
-        input_dim = hidden_dim # TODO what does this do
+        input_dim = hidden_dim 
     return nn.Sequential(*layers)
 
 def log_matplotlib_figure(figure_label: str):
@@ -266,7 +266,6 @@ class GraphLayer(torch.nn.Module):
         use_batch_norm: bool = True,
         dropout_rate: float = 0.1
     ):
-        # TODO figure out what use_residual is
         """Constructs a single graph Layer in the network
 
         Args:

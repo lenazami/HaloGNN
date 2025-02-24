@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 import torch
 import pickle
-from data_utils import read_data
+from utils import read_cat_data
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("The baseline data script used:", device)
@@ -42,10 +42,6 @@ filenames = {
         3: DATA_DIR / "high-z-jwst/ASTRID_galaxy_halo_catalog_214.npy",
     },
 }
-
-"""
-For output filepaths
-"""
 
 
 # ------------------
@@ -150,7 +146,7 @@ if __name__ == "__main__":
             out_path.mkdir(parents=True, exist_ok=True)
             print(f"Currently processing redshift z={z} for {sim} Suite")
 
-            cat_data = read_data(filepath, min_mass=min_mass)
+            cat_data = read_cat_data(filepath, min_mass=min_mass)
             print(
                 f"This catalogue is {os.path.getsize(filepath) / (1024 * 1024):.2f} MB, contains {cat_data.shape[0]:_} galaxies"
             )
@@ -171,12 +167,12 @@ if __name__ == "__main__":
             # Creates the summary statistics; Processes ~50,000 halos/sec
             column_names = halos[0].dtype.names
 
-            halo_stats = []
+            halo_sum_stats = []
             for halo in halos:
-                halo_stats.append(
+                halo_sum_stats.append(
                     sum_stats(halo, add_z0=True if sim == "TNG" else False)
                 )
-            df = pd.DataFrame(halo_stats)
+            df = pd.DataFrame(halo_sum_stats)
             df.to_csv(f"{out_path}/{sim}_z{z}_raw.csv", index=False)
             means = df.mean()
             stds = df.std()

@@ -8,7 +8,7 @@ from scipy.spatial import cKDTree
 import torch
 from torch_geometric.data import Data
 import time
-from data_utils import read_data
+from utils import read_data
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("The GNN data script used: ", device)
@@ -16,22 +16,23 @@ print("The GNN data script used: ", device)
 # ------------------
 # Dictionaries and Global Variables
 # ------------------
-DATA_PATH = Path(f"/n/holystore01/LABS/itc_lab/Lab/galaxyGNN/")
+ROOT_DIR = Path(f"/n/holystore01/LABS/itc_lab/Lab/galaxyGNN/")
 
 filenames = {
-    # "TNG": {
-    #     6: DATA_PATH / "high-z-jwst-TNG/TNG100_galaxy_halo_catalog_z6.npy",
-    #     5: DATA_PATH / "high-z-jwst-TNG/TNG100_galaxy_halo_catalog_z5.npy",
-    #     4: DATA_PATH / "high-z-jwst-TNG/TNG100_galaxy_halo_catalog_z4.npy",
-    #     3: DATA_PATH / "high-z-jwst-TNG/TNG100_galaxy_halo_catalog_z3.npy",
-    # },
+    "TNG": {
+        6: ROOT_DIR / "high-z-jwst-TNG/TNG100_galaxy_halo_catalog_z6.npy",
+        5: ROOT_DIR / "high-z-jwst-TNG/TNG100_galaxy_halo_catalog_z5.npy",
+        4: ROOT_DIR / "high-z-jwst-TNG/TNG100_galaxy_halo_catalog_z4.npy",
+        3: ROOT_DIR / "high-z-jwst-TNG/TNG100_galaxy_halo_catalog_z3.npy",
+    },
     "ASTRID": {
-        #6: DATA_PATH / "high-z-jwst/ASTRID_galaxy_halo_catalog_047.npy",
-        #5: DATA_PATH / "high-z-jwst/ASTRID_galaxy_halo_catalog_107.npy",
-        #4: DATA_PATH / "high-z-jwst/ASTRID_galaxy_halo_catalog_147.npy",
-        3: DATA_PATH / "high-z-jwst/ASTRID_galaxy_halo_catalog_214.npy",
+        6: ROOT_DIR / "high-z-jwst/ASTRID_galaxy_halo_catalog_047.npy",
+        5: ROOT_DIR / "high-z-jwst/ASTRID_galaxy_halo_catalog_107.npy",
+        4: ROOT_DIR / "high-z-jwst/ASTRID_galaxy_halo_catalog_147.npy",
+        3: ROOT_DIR / "high-z-jwst/ASTRID_galaxy_halo_catalog_214.npy",
     },
 }
+
 BOXSIZE = {
     "ASTRID": 250_000,
     "TNG": 75_000,
@@ -285,7 +286,7 @@ def process(sim, z, filepath, graph_radius, min_mass):
         filepath, suite=sim, radius=graph_radius, min_mass=min_mass
     )
     torch.save(graphs, output_path / f"{sim}_z{z}_all_graphs.pt")
-    # save feature stastitics
+    # save feature statistics
     torch.save(stats, output_path / f"{sim}_z{z}_feature_stats.pt")
     end = time.time()
     print(f"{sim}z{z} halo processing took {get_time(end-start)}.")

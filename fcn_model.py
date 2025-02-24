@@ -29,11 +29,11 @@ def log_matplotlib_figure(figure_label: str):
 
 
 class FlowModel(L.LightningModule):
-    def __init__(self, context=11, transforms=6, hidden_features=[128, 128, 128]):
+    def __init__(self, context=23, transforms=6, hidden_features=[128, 128, 128]):
         """
         Notes on Zuko notation--
         features: desired output dimension; In this case, just the halo mass, so it is 1
-        context: the input dimension; or the amount of trainable features, in this case it is 11
+        context: the input dimension; or the amount of trainable features, in this case it is up to 23
         """
         super().__init__()
         self.flow = zuko.flows.MAF(
