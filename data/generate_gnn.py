@@ -1,49 +1,35 @@
 # ------------------
 # Imports
 # ------------------
+# general
+import time
+start_import = time.time()
+
 from pathlib import Path
+from datetime import timedelta
+import logging
+
+# external
 import numpy as np
 import pandas as pd
 from scipy.spatial import cKDTree
 import torch
 from torch_geometric.data import Data
-import time
-from utils import read_data
+from itertools import product
+
+# internal
+from DeepHalos.utils_old.__old_init__ import read_cat_data, DataConfig, _cfg_raw
+from DeepHalos.utils_old.__old_init__ import SIMS, REDSHIFTS, OBSERVABLES
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print("The GNN data script used: ", device)
+
+logger = logging.getLogger("GNN_data")
 
 # ------------------
-# Dictionaries and Global Variables
+# Functions
 # ------------------
-ROOT_DIR = Path(f"/n/holystore01/LABS/itc_lab/Lab/galaxyGNN/")
-
-filenames = {
-    "TNG": {
-        6: ROOT_DIR / "high-z-jwst-TNG/TNG100_galaxy_halo_catalog_z6.npy",
-        5: ROOT_DIR / "high-z-jwst-TNG/TNG100_galaxy_halo_catalog_z5.npy",
-        4: ROOT_DIR / "high-z-jwst-TNG/TNG100_galaxy_halo_catalog_z4.npy",
-        3: ROOT_DIR / "high-z-jwst-TNG/TNG100_galaxy_halo_catalog_z3.npy",
-    },
-    "ASTRID": {
-        6: ROOT_DIR / "high-z-jwst/ASTRID_galaxy_halo_catalog_047.npy",
-        5: ROOT_DIR / "high-z-jwst/ASTRID_galaxy_halo_catalog_107.npy",
-        4: ROOT_DIR / "high-z-jwst/ASTRID_galaxy_halo_catalog_147.npy",
-        3: ROOT_DIR / "high-z-jwst/ASTRID_galaxy_halo_catalog_214.npy",
-    },
-}
-
-BOXSIZE = {
-    "ASTRID": 250_000,
-    "TNG": 75_000,
-}
-
-
-base_path = Path(f"/n/holystore01/LABS/itc_lab/Lab/galaxyGNN/carol_processed_data/")
-
-
 def find_neighbors(
-    cat_data: np.ndarray, boxsize: float, radius: float = 2000.0
+    cat_data: np.ndarray, cfg: DataConfig
 ) -> tuple:
     """Find central galaxies and their neighbors."""
     # Find central galaxies (highest mass in each group)
@@ -57,69 +43,64 @@ def find_neighbors(
     # Tricky, use GalaxyMass instead? but want to match dataset fcn
     central_idx = df.groupby("FOFID")["HaloMass"].idxmax().values
     # Find neighbors using periodic boundary conditions
-    positions = cat_data["GalaxyPos"] % boxsize
-    kdtree = cKDTree(positions, boxsize=boxsize)
-    neighbor_idx = kdtree.query_ball_point(positions[central_idx], radius)
+    positions = cat_data["GalaxyPos"] % cfg.box_size
+    kdtree = cKDTree(positions, boxsize=cfg.box_size)
+    neighbor_idx = kdtree.query_ball_point(positions[central_idx], cfg.graph_radius)
     return central_idx, neighbor_idx
 
 
 def process_features(cat_data: np.ndarray, boxsize: float) -> tuple:
     """Extract and process galaxy features."""
     # Process features with appropriate transformations
-    features = {
-        "HaloMass": np.log10(cat_data["HaloMass"]),
-        "GalaxyMass": np.log10(cat_data["GalaxyMass"]),
-        "GalaxyPos_1": cat_data["GalaxyPos"][:, 0] % boxsize,
-        "GalaxyPos_2": cat_data["GalaxyPos"][:, 1] % boxsize,
-        "GalaxyPos_3": cat_data["GalaxyPos"][:, 2] % boxsize,
-        "GalaxyVel_1": cat_data["GalaxyVel"][:, 0],
-        "GalaxyVel_2": cat_data["GalaxyVel"][:, 1],
-        "GalaxyVel_3": cat_data["GalaxyVel"][:, 2],
-        "GalaxyVel": np.linalg.norm(cat_data["GalaxyVel"], axis=1),
-        "GalaxyRhalf": np.log10(cat_data["GalaxyRhalf"]),
-        "SFR": np.log10(np.where(cat_data["SFR"] == 0, 1e-5, cat_data["SFR"])),
-        "jwst_f090w": cat_data["jwst_f090w"],
-        "jwst_f150w": cat_data["jwst_f150w"],
-        "jwst_f277w": cat_data["jwst_f277w"],
-        "jwst_f444w": cat_data["jwst_f444w"],
-    }
-    if "HaloMass_z0" in cat_data.dtype.names:
-        features["HaloMass_z0"] = np.log10(cat_data["HaloMass_z0"])
-
-    df = pd.DataFrame(features)
-    feature_array = df.values
-    feature_names = df.columns.tolist()
-    halo_idx = feature_names.index("HaloMass")
-    pos_idx = [
-        feature_names.index(f) for f in ["GalaxyPos_1", "GalaxyPos_2", "GalaxyPos_3"]
+    
+    feats = [
+        ("HaloMass",   np.log10(cat_data["HaloMass"])),
+        ("GalaxyMass", np.log10(cat_data["GalaxyMass"])),
+        ("GalaxyPos_1", cat_data["GalaxyPos"][:, 0] % boxsize),
+        ("GalaxyPos_2", cat_data["GalaxyPos"][:, 1] % boxsize),
+        ("GalaxyPos_3", cat_data["GalaxyPos"][:, 2] % boxsize),
+        ("GalaxyVel_1", cat_data["GalaxyVel"][:, 0]),
+        ("GalaxyVel_2", cat_data["GalaxyVel"][:, 1]),
+        ("GalaxyVel_3", cat_data["GalaxyVel"][:, 2]),
+        ("GalaxyVel",   np.linalg.norm(cat_data["GalaxyVel"], axis=1)),
+        ("GalaxyRhalf", np.log10(cat_data["GalaxyRhalf"])),
+        ("SFR",         np.log10(np.where(cat_data["SFR"] == 0, 1e-5, cat_data["SFR"]))),
+        ("jwst_f090w",  cat_data["jwst_f090w"]),
+        ("jwst_f150w",  cat_data["jwst_f150w"]),
+        ("jwst_f277w",  cat_data["jwst_f277w"]),
+        ("jwst_f444w",  cat_data["jwst_f444w"]),
     ]
+    if "HaloMass_z0" in cat_data.dtype.names:
+        feats.append(("HaloMass_z0", np.log10(cat_data["HaloMass_z0"])))
+        
+    feature_names, arrays = zip(*feats)
+    feature_names = list(feature_names)
+    feature_array = np.stack(arrays, axis=1)
+    
+    halo_idx = feature_names.index("HaloMass")
+    pos_idx = [feature_names.index(f) for f in ["GalaxyPos_1", "GalaxyPos_2", "GalaxyPos_3"]]
 
     if "HaloMass_z0" in feature_names:
-        halo_z0_idx = feature_names.index("HaloMass_z0")
-        non_halo_and_pos_idx = [
-            i
-            for i in range(len(feature_names))
-            if i not in pos_idx and i != halo_idx and i != halo_z0_idx
-        ]
-        halo_masses_z0 = feature_array[:, halo_z0_idx]
+        z0_idx = feature_names.index("HaloMass_z0")
+        non_halo_pos = [i for i in range(len(feature_names))
+            if i not in pos_idx + [halo_idx, z0_idx]]
+        halo_masses_z0 = feature_array[:, z0_idx]
     else:
-        non_halo_and_pos_idx = [
-            i for i in range(len(feature_names)) if i not in pos_idx and i != halo_idx
-        ]
+        non_halo_pos = [i for i in range(len(feature_names)) 
+                        if i not in pos_idx + [halo_idx]]
         halo_masses_z0 = None
 
     halo_masses = feature_array[:, halo_idx]
     positions = feature_array[:, pos_idx]
-    galaxy_features = feature_array[:, non_halo_and_pos_idx]
-    galaxy_names = [
-        name for i, name in enumerate(feature_names) if i in non_halo_and_pos_idx
-    ]
+    galaxy_features = feature_array[:, non_halo_pos]
+    galaxy_names = [feature_names[i] for i in non_halo_pos]
 
     return halo_masses, halo_masses_z0, positions, galaxy_features, galaxy_names
 
 
 def apply_periodic_boundary(delta: np.ndarray, boxsize: float) -> np.ndarray:
     """Apply periodic boundary conditions to position differences."""
+    
     mask = np.abs(delta) > 0.5 * boxsize
     delta[mask] = np.where(
         delta[mask] > 0, delta[mask] - boxsize, delta[mask] + boxsize
@@ -138,7 +119,7 @@ def build_graph(
     radius: float,
     max_galaxies: int = 100,
 ) -> Data:
-    """Build a graph for a group of galaxies."""
+    """Build a graph for a group of galaxies using a PyTorch Geometric Data object."""
     # Get features for this group
     node_features = features[idx]
 
@@ -189,20 +170,17 @@ def build_graph(
     )
 
 
-def create_galaxy_graphs(
-    data_path: Path, suite: str = "TNG", radius: float = 2000.0, min_mass: float = 1e7
-) -> list:
-    """Main function to create galaxy graphs from catalog."""
+def create_galaxy_graphs(cfg: DataConfig) -> list:
+    """Loads catalog, finds neighbors, builds graphs, returns (graphs, stats)."""
     # Load and process data
-    boxsize = BOXSIZE[suite]
-    cat_data = read_data(data_path, min_mass=1e7)
-    print(f"This catalogue contains {cat_data.shape} galaxies")
+    cat_data = read_cat_data(cfg)
+    
     # Find central galaxies and neighbors
-    central_idx, neighbor_idx = find_neighbors(cat_data, boxsize, radius)
+    central_idx, neighbor_idx = find_neighbors(cat_data, cfg)
 
     # Process features
     halo_masses, halo_masses_z0, positions, features, feature_names = process_features(
-        cat_data, boxsize
+        cat_data, cfg.box_size
     )
 
     features_means, features_stds = features.mean(axis=0), features.std(axis=0)
@@ -246,66 +224,55 @@ def create_galaxy_graphs(
 
     # Create graphs
     graphs = []
-    for i, c_idx in enumerate(central_idx):
-        graph_idx = [
-            c_idx,
-        ] + neighbor_idx[i]
+    for center, neighbors in zip(central_idx, neighbor_idx):
+        indices = [center] + neighbors
         graph = build_graph(
-            graph_idx,
+            indices,
             halo_masses,
             halo_masses_z0,
             positions,
             features,
             feature_names,
-            boxsize,
-            radius,
+            cfg.box_size,
+            cfg.graph_radius,
         )
         graphs.append(graph)
-    print("Final len graphs = ", len(graphs))
-    print([g.y for g in graphs[:10]])
+    
     return graphs, stats
 
 
-def get_time(elapsed):
-    """
-    Gets time elapsed in text format
-    """
-    hours, remainder = divmod(elapsed, 3600)  # 3600 seconds in an hour
-    minutes, seconds = divmod(remainder, 60)  # 60 seconds in a minute
-    return f"{int(hours)} hours, {int(minutes)} minutes, {seconds:.2f} seconds"
-
-
-def process(sim, z, filepath, graph_radius, min_mass):
+# ------------------
+# Main
+# ------------------
+def main():
+    print(f"GNN data generator is using device: {device}")
     start = time.time()
-    output_path = base_path / f"gnn_{graph_radius:.1f}/{sim}_z{z}"
-    output_path.mkdir(parents=True, exist_ok=True)
-    # Housewarming
-    print(f"\033[35mCurrently processing redshift z={z} for {sim} Suite\033[37m")
-
-    graphs, stats = create_galaxy_graphs(
-        filepath, suite=sim, radius=graph_radius, min_mass=min_mass
-    )
-    torch.save(graphs, output_path / f"{sim}_z{z}_all_graphs.pt")
-    # save feature statistics
-    torch.save(stats, output_path / f"{sim}_z{z}_feature_stats.pt")
-    end = time.time()
-    print(f"{sim}z{z} halo processing took {get_time(end-start)}.")
-
+    cfg = DataConfig()
+    
+    
+    for sim,z in product(SIMS, REDSHIFTS):
+        if sim == "TNG" and z == 3:
+            continue
+        start = time.time()
+        cfg.sim = sim
+        cfg.z = z
+        output_path = cfg.root / f"processed_data/gnn_{cfg.graph_radius:.1f}/{cfg.sim}_z{cfg.z}"
+        output_path.mkdir(parents=True, exist_ok=True)
+        
+        logger.info(f"Processing suite {sim} at redshift {z}")
+        
+        logger.debug(f"Output path: {output_path}")
+        
+        graphs, stats = create_galaxy_graphs(cfg)
+        torch.save(graphs, output_path / f"all_graphs.pt")
+        torch.save(stats, output_path / f"feature_stats.pt")
+        
+        logger.info(f"Wrote {len(graphs)} graphs to {output_path}")
+        logger.debug([g.y for g in graphs[:10]])
+        logger.info(f"{cfg.sim} z{cfg.z} halo processing took {timedelta(seconds=(time.time()-start))}.\n")
+            
+            
+    logger.info(f"This program took {timedelta(seconds=(time.time()-start_import))}.\n")
 
 if __name__ == "__main__":
-    # ------------------
-    # Main Processing
-    # ------------------
-    graph_radius = 2000.0
-    min_mass = 1e7
-
-    start_whole = time.time()
-    for sim, data in filenames.items():
-        for z, filepath in data.items():
-            process(sim, z, filepath, graph_radius, min_mass)
-
-    # ------------------
-    # Finishing
-    # ------------------
-    end_whole = time.time()
-    print(f"This program took {get_time(end_whole-start_whole)}")
+    main()

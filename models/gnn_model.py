@@ -498,8 +498,11 @@ class GraphModel(L.LightningModule):
         self.save_hyperparameters()
         self.validation_step_outputs = []
     
+    def forward(self, batch):
+        return self.model(batch)
+    
     def training_step(self, batch):
-        y_pred = self.model(batch)
+        y_pred = self(batch)
         loss = -self.flow(y_pred).log_prob(batch.y.unsqueeze(-1)).mean()
         self.log("train_loss", loss, prog_bar=True, batch_size=self.batch_size,)
         
@@ -510,7 +513,7 @@ class GraphModel(L.LightningModule):
         return loss
     
     def validation_step(self, batch):
-        y_pred = self.model(batch) 
+        y_pred = self(batch) 
         y_flow = self.flow(y_pred)
         
         loss = -y_flow.log_prob(batch.y.unsqueeze(-1)).mean()
@@ -529,7 +532,7 @@ class GraphModel(L.LightningModule):
         
         for output in self.validation_step_outputs:
             batch = output["batch"]
-            y_pred = self.model(batch)
+            y_pred = self(batch)
             ys.append(batch.y)
             samp_flow = self.flow(y_pred).sample((100,)).squeeze()
             pred.append(samp_flow.T)
@@ -574,7 +577,7 @@ class GraphModel(L.LightningModule):
 
     def predict_step(self, batch, batch_idx, n_samples=200):
         x = batch
-        summary = self.model(x)
+        summary = self(x)
         samples = self.flow(summary).sample((n_samples,))
         log_prob = self.flow(summary).log_prob(x.y.unsqueeze(-1))
         return {"log_prob": log_prob, "samples": samples}

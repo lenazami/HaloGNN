@@ -1,3 +1,19 @@
 ### Ignore ###
 *.log
 tmp/
+__pycache__/
+.pytest_cache/
+outputs/
+multirun/
+utils_old/
+
+run_pipeline.py
+testing.ipynb
+TODO_refactored_pipeline.py
+
+# all the heavy checkpoints+results paths
+checkpoints/
+results/
+data/processed/
+data/stats/
+wandb/
