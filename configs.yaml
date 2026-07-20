@@ -1,0 +1,18 @@
+# configs.yaml
+# The ONLY path here is the external raw catalogue root (lab data, can't be repo-relative).
+# *** specific to the Harvard ITC cluster; change for local use.
+# Everything else (data/, outputs/) is found relative to the repo root -- no artifact roots.
+catalogue_dir: "/n/holystore01/LABS/itc_lab/Lab/galaxyGNN"
+
+# params
+model_type: "GNN"
+sim: "ASTRID"
+z: 4
+observables_only: False
+graph_radius: 2000.0
+min_mass: 1e7
+hm_present: False
+
+# params: INFO, DEBUG
+logging:
+  level: INFO
