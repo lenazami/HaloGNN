@@ -91,3 +91,19 @@ graph_radius: float = 2000.0        # Graph radius for GNN
 train_sim: Optional[str] = None     # Simulation used for training, defaults to sim
 observables_only: bool = False      # If True, only observable features (JWST frequency bands) are used
 hm_present: bool = False            # If True, we train on present-day halo mass
+
+
+
+- GalaxyMass: galaxy stellar mass in Msun
+- GalaxyPos: galaxy position in kpc/h
+- GalaxyVel: galaxy peculiar velocity in km/s
+- GalaxyRhalf: galaxy half stellar mass radius in kpc/h
+- SFR: star formation rate within the galaxy subhalo, in Msun/yr
+- HaloMass: FOF halo mass in Msun
+- HaloMass: FOF halo mass in Msun
+- jwst_f090w: color magnitude of the galaxy in wide band filters (JWST-like)
+- jwst_f150w: same
+- jwst_f277w: same
+- jwst_f444w: same
+- FOFID: ID of the galaxy host FOF halo 
+- sgpID: ID of the galaxy subhalo

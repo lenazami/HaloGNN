@@ -1,17 +1,10 @@
 # configs.yaml
-# directory paths
-# *** NOTE: these paths are specific to the Harvard ITC cluster and should be changed for local use
+# The ONLY path here is the external raw catalogue root (lab data, can't be repo-relative).
+# *** specific to the Harvard ITC cluster; change for local use.
+# Everything else (data/, outputs/) is found relative to the repo root -- no artifact roots.
 catalogue_dir: "/n/holystore01/LABS/itc_lab/Lab/galaxyGNN"
 
-# artifact roots -- heavy outputs live OUTSIDE the code repo (see REFACTOR_PLAN.md)
-#   data_root: processed graphs + tabular data + stats
-#   out_root:  checkpoints + results
-# (~ is expanded; on a laptop point these wherever you keep the artifacts)
-data_root: "~/halognn"
-out_root: "~/halognn"
-
 # params
-project_dir: "."
 model_type: "GNN"
 sim: "ASTRID"
 z: 4
