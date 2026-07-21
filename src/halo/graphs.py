@@ -28,77 +28,57 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # ------------------
 # Functions
 # ------------------
-def find_neighbors(
-    cat_data: np.ndarray
-) -> tuple:
+def find_neighbors(cat_data: np.ndarray, boxsize, graph_radius) -> tuple:
     """Find central galaxies and their neighbors."""
     # added subgroup id to catalogs to be able to match halos between gnn and fcn?
     central_idx = np.flatnonzero(cat_data["sgpID"] == 1)
     # Find neighbors using periodic boundary conditions
-    positions = cat_data["GalaxyPos"] % cfg.box_size
-    kdtree = cKDTree(positions, boxsize=cfg.box_size)
-    nbr_idx = kdtree.query_ball_point(positions[central_idx], cfg.graph_radius)
+    positions = cat_data["GalaxyPos"] % boxsize
+    tree = cKDTree(positions, boxsize=boxsize)
+    nbr_idx = tree.query_ball_point(positions[central_idx], graph_radius, return_sorted=False)
     return central_idx, nbr_idx
-
 
 def process_features(cat_data: np.ndarray, boxsize: float) -> tuple:
     """Extract and process galaxy features."""
     # Process features with appropriate transformations
+    names = cat_data.dtype.names
+    # n_galaxies = len(cat_data)
     
-    feats = [
-        ("HaloMass",   np.log10(cat_data["HaloMass"])),
-        ("GalaxyMass", np.log10(cat_data["GalaxyMass"])),
-        ("GalaxyPos_1", cat_data["GalaxyPos"][:, 0] % boxsize),
-        ("GalaxyPos_2", cat_data["GalaxyPos"][:, 1] % boxsize),
-        ("GalaxyPos_3", cat_data["GalaxyPos"][:, 2] % boxsize),
-        ("GalaxyVel_1", cat_data["GalaxyVel"][:, 0]),
-        ("GalaxyVel_2", cat_data["GalaxyVel"][:, 1]),
-        ("GalaxyVel_3", cat_data["GalaxyVel"][:, 2]),
-        ("GalaxyVel",   np.linalg.norm(cat_data["GalaxyVel"], axis=1)),
-        ("GalaxyRhalf", np.log10(cat_data["GalaxyRhalf"])),
-        ("SFR",         np.log10(np.where(cat_data["SFR"] == 0, 1e-5, cat_data["SFR"]))),
-        ("jwst_f090w",  cat_data["jwst_f090w"]),
-        ("jwst_f150w",  cat_data["jwst_f150w"]),
-        ("jwst_f277w",  cat_data["jwst_f277w"]),
-        ("jwst_f444w",  cat_data["jwst_f444w"]),
+    positions = cat_data["GalaxyPos"] % boxsize
+    vel = cat_data["GalaxyVel"]
+    bands = [n for n in names if n.startswith("jwst_")]
+    
+    feat_names = [
+        "GalaxyMass",
+        *(f"GalaxyVel_{i + 1}" for i in range(3)),
+        "GalaxyVel",
+        "GalaxyRhalf",
+        "SFR",
+        *bands,
     ]
-    if "HaloMass_z0" in cat_data.dtype.names:
-        feats.append(("HaloMass_z0", np.log10(cat_data["HaloMass_z0"])))
-        
-    feature_names, arrays = zip(*feats)
-    feature_names = list(feature_names)
-    feature_array = np.stack(arrays, axis=1)
+    feats = np.column_stack([
+        np.log10(cat_data["GalaxyMass"]),
+        vel,
+        np.linalg.norm(vel, axis=1),
+        np.log10(cat_data["GalaxyRhalf"]),
+        np.log10(np.maximum(cat_data["SFR"], 1e-5)),
+        *(cat_data[name] for name in bands),
+    ]).astype(np.float32)
     
-    halo_idx = feature_names.index("HaloMass")
-    pos_idx = [feature_names.index(f) for f in ["GalaxyPos_1", "GalaxyPos_2", "GalaxyPos_3"]]
-
-    if "HaloMass_z0" in feature_names:
-        z0_idx = feature_names.index("HaloMass_z0")
-        non_halo_pos = [i for i in range(len(feature_names))
-            if i not in pos_idx + [halo_idx, z0_idx]]
-        halo_masses_z0 = feature_array[:, z0_idx]
-    else:
-        non_halo_pos = [i for i in range(len(feature_names)) 
-                        if i not in pos_idx + [halo_idx]]
-        halo_masses_z0 = None
-
-    halo_masses = feature_array[:, halo_idx]
-    positions = feature_array[:, pos_idx]
-    galaxy_features = feature_array[:, non_halo_pos]
-    galaxy_names = [feature_names[i] for i in non_halo_pos]
-
-    return halo_masses, halo_masses_z0, positions, galaxy_features, galaxy_names
+    halo_masses = np.log10(cat_data["HaloMass"]).astype(np.float32)
+    # to predict hm in present day
+    halo_masses_z0 = (
+        np.log10(cat_data["HaloMass_z0"]).astype(np.float32)
+        if "HaloMass_z0" in names
+        else None
+    )
+    
+    return halo_masses, halo_masses_z0, positions, feats, feat_names
 
 
 def apply_periodic_boundary(delta: np.ndarray, boxsize: float) -> np.ndarray:
     """Apply periodic boundary conditions to position differences."""
-    
-    mask = np.abs(delta) > 0.5 * boxsize
-    delta[mask] = np.where(
-        delta[mask] > 0, delta[mask] - boxsize, delta[mask] + boxsize
-    )
-    return delta
-
+    return (delta + 0.5 * boxsize) % boxsize - 0.5 * boxsize
 
 def build_graph(
     center: int,
