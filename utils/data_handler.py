@@ -14,29 +14,6 @@ from .io import get_file, convert_to_float32
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-class BaseDataHandler(ABC):
-    """Abstract base class for data handlers."""
-    @abstractmethod
-    def read_data(self, cfg: Config) -> Any:
-        pass
-    @abstractmethod
-    def load_stats(self, cfg: Config) -> Any:
-        pass
-    @abstractmethod
-    def normalize(self, data: Any, stats: Any) -> Any:
-        pass
-    @abstractmethod
-    def denormalize(self, data: Any, stats: Any, field: str) -> Any:
-        pass
-    @abstractmethod
-    def filter_observables(self, data: Any) -> Any:
-        pass
-    @abstractmethod
-    def create_dataloader(self, data:Any, cfg: Config,
-                    batch_size: int, shuffle: bool,
-                    indices: Optional[List[int]] = None) -> Any:
-        pass
- 
 class FCNHandler(BaseDataHandler):
     """Handler for Fully Connected Network data."""
     

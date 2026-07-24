@@ -56,7 +56,7 @@ class Config:
     results_dir: Path = field(init=False)
     
     # other computed fields
-    box_size: int = field(init=False)
+    boxsize: int = field(init=False)
     astrid_id: str = field(init=False)
 
     def __post_init__(self):
@@ -84,7 +84,7 @@ class Config:
         self._setup_directories()
         
         # derived
-        self.box_size = BOX_SIZES[self.sim]
+        self.boxsize = BOX_SIZES[self.sim]
         self.astrid_id = ASTRID_CAT_IDS[self.z]
         self.train_sim  = self.train_sim or self.sim.value
     
@@ -166,3 +166,4 @@ class Config:
     # TODO: check if feautre_field is necessary
     def feature_field(self) -> str:
         return "HaloMass" if self.hm_present else "HaloMass_z0"
+    

@@ -21,8 +21,7 @@ from lampe.diagnostics import expected_coverage_mc
 from .data_utils import load_data
 from .model_utils import load_model
 from .config import Config, ModelType
-from models.gnn_model import GraphModel
-from models.fcn_model import FlowModel
+from halo.models import FlowModel
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -103,7 +102,7 @@ def plot_all_redshifts(truths, log_probs, samples):
 def _get_lampe_pairs(
     cfg: Config,
     dataloader: DataLoader,
-    model: Union[GraphModel, FlowModel]
+    model: FlowModel
 ) -> List[Tuple[torch.Tensor, torch.Tensor]]:
     """
     Generate (true, posterior) pairs for coverage analysis.
@@ -113,11 +112,11 @@ def _get_lampe_pairs(
     if cfg.model_type == ModelType.GNN:
         def fetch(batch):
             batch = batch.to(device)
-            return batch.y, model(batch)
+            return batch.y, model.encode(batch)
     else:
         def fetch(batch):
             x, y = batch
-            return y.to(device), model(x.to(device))
+            return y.to(device), model.encode(x.to(device))
 
     thetas = []
     samples = []
