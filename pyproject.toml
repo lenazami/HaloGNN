@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "halography"
+version = "0.1.0"
+requires-python = ">=3.9"
+dependencies = [
+    "lightning>=2.0",
+    "matplotlib>=3.6",
+    "torch>=2.0",
+    "torch-geometric>=2.2",
+    "zuko>=0.4",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "."]
+testpaths = ["tests"]

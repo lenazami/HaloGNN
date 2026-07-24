@@ -7,7 +7,7 @@ In this repo, we compare the capabilities of two models for inferring dark matte
 - a Graph Neural Network (GNN) learning point-cloud embeddings 
 This repo contains data generation scripts, model definitions, training pipelines, and notebooks to aid in understanding our final analysis. The final results are documented in "blah blah."
 
-<img src="figures/network_graphic.png" width="1000">
+<img src="results/figs/network_graphic.png" width="1000">
 
 ## Quick Start Guide
 
@@ -107,3 +107,14 @@ hm_present: bool = False            # If True, we train on present-day halo mass
 - jwst_f444w: same
 - FOFID: ID of the galaxy host FOF halo 
 - sgpID: ID of the galaxy subhalo
+
+
+# notes on zuko
+
+Notes on Zuko notation--
+features: desired output dimension; In this case, just the halo mass, so it is 1
+context: the input dimension; or the amount of trainable features, in this case it is up to 23
+
+# data supported
+
+illustris dataset we used doesnt have z=3 catalog , and we only have z=3,4,5,6

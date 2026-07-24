@@ -1,18 +1,28 @@
 # configs.yaml
-# The ONLY path here is the external raw catalogue root (lab data, can't be repo-relative).
-# *** specific to the Harvard ITC cluster; change for local use.
-# Everything else (data/, outputs/) is found relative to the repo root -- no artifact roots.
-catalogue_dir: "/n/holystore01/LABS/itc_lab/Lab/galaxyGNN"
 
-# params
-model_type: "GNN"
-sim: "ASTRID"
-z: 4
-observables_only: False
-graph_radius: 2000.0
-min_mass: 1e7
-hm_present: False
+simulation:
+  sim: "ASTRID"
+  z: 4
+  boxsizes:
+    TNG: 75000
+    ASTRID: 250000
+  astrid_catalogue_ids:
+    3: "214"
+    4: "147"
+    5: "107"
+    6: "047"
+  catalogue_templates:
+    ASTRID: "catalogs/high-z-jwst-ASTRID/ASTRID_galaxy_halo_catalog_{astrid_id}.npy"
+    TNG: "high-z-jwst-TNG/TNG100_galaxy_halo_catalog_z{z}.npy"
 
-# params: INFO, DEBUG
-logging:
-  level: INFO
+model:
+  model_type: "GNN"
+  graph_radius: 2000.0
+  observables_only: false
+  hm_present: false
+  min_mass: 1.0e7
+  train_sim: null
+
+paths:
+  # catalog stored in external directory
+  catalogue_dir: "/n/holystore01/LABS/itc_lab/Lab/galaxyGNN"
