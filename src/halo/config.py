@@ -1,14 +1,5 @@
-"""Small, YAML-driven configuration helpers kept separate from ``utils.config``.
-
-The public objects are intentionally similar to ``utils_rsd``::
-
-    cfg = load_config()
-    sim = Simulation.from_cfg(cfg)
-    model = Model.from_cfg(cfg)
-    paths = Paths.from_file(__file__)
-    data = paths.data_path(sim, model)
-"""
-
+# src/halo/config.py
+# helpers for pathfinding, simulation and model validations
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -16,37 +7,6 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-
-# -----------
-# config
-# -----------
-def load_config(path: str | Path | None = None) -> dict[str, Any]:
-    """Read ``configs.yaml`` and return its plain dictionary."""
-    path = Path(path) if path is not None else Path(__file__).resolve().parents[2] / "configs.yaml"
-    with path.open() as file:
-        config = yaml.safe_load(file)
-    validate_config(config)
-    return config
-
-def validate_config(cfg: dict[str, Any]) -> None:
-    """check config combinations we do not support."""
-    simulation = cfg["simulation"]
-    model = cfg["model"]
-    sim = simulation["sim"]
-    z = int(simulation["z"])
-
-    if sim not in simulation["boxsizes"]:
-        raise ValueError(f"Unknown simulation: {sim}")
-    if z not in {int(value) for value in simulation["astrid_catalogue_ids"]}:
-        raise ValueError(f"Invalid redshift: {z}")
-    if z == 3 and sim == "TNG":
-        raise ValueError("Redshift 3 incompatible with TNG")
-    if float(model["graph_radius"]) <= 0:
-        raise ValueError("graph_radius must be positive")
-    if float(model["min_mass"]) <= 0:
-        raise ValueError("min_mass must be positive")
-    if model["hm_present"] and sim != "TNG":
-        raise ValueError("hm_present=True is only supported for TNG.")
 
 # -----------
 # simulation
@@ -184,10 +144,6 @@ class Paths:
     def outputs(self) -> Path:
         return self.root / "outputs"
     
-    # @property
-    # def processed(self) -> Path:
-    #     return self.data / "processed"
-
     @property
     def stats(self) -> Path:
         return self.data / "stats"
@@ -235,59 +191,31 @@ class Paths:
 
 PATHS = Paths.from_file(__file__)
 
+# -----------
+# config
+# -----------
+def load_config():
+    """read config yaml"""
+    with open(PATHS.config) as file:
+        return yaml.safe_load(file)
 
-# # -----------
-# # compatibility helpers
-# # -----------
-# def boxsize(cfg: dict[str, Any]) -> int:
-#     return Simulation.from_cfg(cfg).boxsize
+# TODO: might redistribute this later
+def validate_config(cfg: dict[str, Any]) -> None:
+    """check config combinations we do not support."""
+    simulation = cfg["simulation"]
+    model = cfg["model"]
+    sim = simulation["sim"]
+    z = int(simulation["z"])
 
-
-# def catalogue_path(cfg: dict[str, Any], *, validate: bool = True) -> Path:
-#     return Simulation.from_cfg(cfg).catalogue_path(validate=validate)
-
-
-# def model_directory(cfg: dict[str, Any]) -> str:
-#     return Model.from_cfg(cfg).directory_name
-
-
-# def label_field(cfg: dict[str, Any]) -> str:
-#     return Model.from_cfg(cfg).label_field
-
-
-# def feature_field(cfg: dict[str, Any]) -> str:
-#     return Model.from_cfg(cfg).feature_field
-
-
-# def data_directory(cfg: dict[str, Any]) -> Path:
-#     return PATHS.data_directory(Model.from_cfg(cfg))
-
-
-# def stats_directory(cfg: dict[str, Any]) -> Path:
-#     return PATHS.stats_directory(Model.from_cfg(cfg))
-
-
-# def checkpoint_directory(cfg: dict[str, Any]) -> Path:
-#     return PATHS.checkpoint_directory(Model.from_cfg(cfg))
-
-
-# def results_directory(cfg: dict[str, Any]) -> Path:
-#     return PATHS.results
-
-
-# def data_path(cfg: dict[str, Any]) -> Path:
-#     return PATHS.data_path(Simulation.from_cfg(cfg), Model.from_cfg(cfg))
-
-
-# def stats_path(cfg: dict[str, Any]) -> Path:
-#     return PATHS.stats_path(Simulation.from_cfg(cfg), Model.from_cfg(cfg))
-
-
-# def checkpoint_path(cfg: dict[str, Any], *, create: bool = False) -> Path:
-#     return PATHS.checkpoint_path(
-#         Simulation.from_cfg(cfg), Model.from_cfg(cfg), create=create
-#     )
-
-
-# def create_output_directories(cfg: dict[str, Any]) -> None:
-#     PATHS.create_output_directories(Model.from_cfg(cfg))
+    if sim not in simulation["boxsizes"]:
+        raise ValueError(f"Unknown simulation: {sim}")
+    if z not in {int(value) for value in simulation["astrid_catalogue_ids"]}:
+        raise ValueError(f"Invalid redshift: {z}")
+    if z == 3 and sim == "TNG":
+        raise ValueError("Redshift 3 incompatible with TNG")
+    if float(model["graph_radius"]) <= 0:
+        raise ValueError("graph_radius must be positive")
+    if float(model["min_mass"]) <= 0:
+        raise ValueError("min_mass must be positive")
+    if model["hm_present"] and sim != "TNG":
+        raise ValueError("hm_present=True is only supported for TNG.")
