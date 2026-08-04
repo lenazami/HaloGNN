@@ -1,5 +1,3 @@
-from .fcn import FCNEncoder
-from .flow import FlowModel
-from .gnn import GraphNetwork, complete_pair_geometry
+from .config import Model, Paths, Simulation, load_config
 
-__all__ = ["FCNEncoder", "FlowModel", "GraphNetwork", "complete_pair_geometry"]
+__all__ = ["Model", "Paths", "Simulation", "load_config"]
