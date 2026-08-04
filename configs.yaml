@@ -1,5 +1,8 @@
 # configs.yaml
 
+# universal cuts / settings
+min_mass: 1.0e+7
+
 simulation:
   sim: "ASTRID"
   z: 4
@@ -11,18 +14,28 @@ simulation:
     4: "147"
     5: "107"
     6: "047"
-  catalogue_templates:
+  catalogue_paths:
     ASTRID: "catalogs/high-z-jwst-ASTRID/ASTRID_galaxy_halo_catalog_{astrid_id}.npy"
     TNG: "high-z-jwst-TNG/TNG100_galaxy_halo_catalog_z{z}.npy"
 
 model:
-  model_type: "GNN"
+  model_type: "Graph"
   graph_radius: 2000.0
   observables_only: false
   hm_present: false
-  min_mass: 1.0e7
   train_sim: null
+  hyperparameters:
+    max_steps: 100_000
+    batch_size: 64
+    patience: 50
+    context_dim: 32
+    hidden_dims: (128, 128, 128)
+    flow_transforms: 6
+    learning_rate: 5e-4
+    scheduler_patience: 5
 
 paths:
   # catalog stored in external directory
   catalogue_dir: "/n/holystore01/LABS/itc_lab/Lab/galaxyGNN"
+  # only for generated data (large) off home
+  store_dir: "/n/netscratch/hernquist_lab/Lab/hbrittain/halography"

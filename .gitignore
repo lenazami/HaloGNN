@@ -3,13 +3,13 @@
 tmp/
 __pycache__/
 .pytest_cache/
+.vscode/
 
-# bad scripts
-run_pipeline.py
-testing.ipynb
-TODO_refactored_pipeline.py
-
-# all the heavy directories
-utils_old/
+testing/
+_holding/
+results/
 outputs/
-data/
+slurm/
+wandb/
+
+*.egg-info
